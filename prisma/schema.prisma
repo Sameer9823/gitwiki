@@ -1,0 +1,306 @@
+// GitWiki Intelligence — canonical knowledge store.
+// Postgres is the source of truth; Pinecone is a rebuildable vector projection
+// keyed off RepositorySnapshot.id / RepositoryFile.id (see src/lib/vectorStore.ts).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- Auth (NextAuth / Auth.js Prisma adapter shape) ----------
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+
+  accounts Account[]
+  sessions Session[]
+
+  organizationMemberships OrganizationMember[]
+  connectedRepositories   Repository[]          @relation("ConnectedBy")
+  chatSessions            ChatSession[]
+
+  createdAt DateTime @default(now())
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ---------- Organization / membership ----------
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+
+  members      OrganizationMember[]
+  repositories Repository[]
+  invites      Invite[]
+}
+
+enum OrgRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+model OrganizationMember {
+  id             String       @id @default(cuid())
+  organizationId String
+  userId         String
+  role           OrgRole      @default(OWNER)
+  createdAt      DateTime     @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+}
+
+enum InviteStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  REVOKED
+}
+
+model Invite {
+  id             String       @id @default(cuid())
+  organizationId String
+  email          String
+  role           OrgRole      @default(MEMBER)
+  token          String       @unique @default(cuid())
+  status         InviteStatus @default(PENDING)
+  expiresAt      DateTime
+  createdAt      DateTime     @default(now())
+  acceptedAt     DateTime?
+  acceptedById   String?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([email, organizationId])
+}
+
+// ---------- Repository + indexing (Phase 1 active) ----------
+
+enum IndexStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+model Repository {
+  id             String   @id @default(cuid())
+  organizationId String
+  ownerLogin     String // GitHub owner/org login
+  repoName       String
+  fullName       String // "owner/repo" — matches Pinecone namespace key
+  displayName    String?
+  defaultBranch  String?
+  connectedById  String
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  connectedBy  User         @relation("ConnectedBy", fields: [connectedById], references: [id])
+
+  snapshots     RepositorySnapshot[]
+  chatSessions  ChatSession[]
+
+  // Phase 2+ (schema present now so later phases don't require a breaking migration)
+  files         RepositoryFile[]
+  wikiPages     WikiPage[]
+  commits       Commit[]
+  changeReports ChangeReport[]
+
+  @@unique([organizationId, fullName])
+}
+
+model RepositorySnapshot {
+  id           String      @id @default(cuid())
+  repositoryId String
+  branch       String
+  commitSha    String?
+  status       IndexStatus @default(PENDING)
+  fileCount    Int?
+  chunkCount   Int?
+  error        String?
+  startedAt    DateTime    @default(now())
+  completedAt  DateTime?
+
+  repository Repository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  files      RepositoryFile[]
+
+  @@index([repositoryId, startedAt])
+}
+
+// ---------- Chat ----------
+
+model ChatSession {
+  id               String   @id @default(cuid())
+  repositoryId     String
+  userId           String
+  title            String?
+  titleManuallySet Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  repository Repository    @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages   ChatMessage[]
+}
+
+enum ChatRole {
+  USER
+  ASSISTANT
+}
+
+model ChatMessage {
+  id            String   @id @default(cuid())
+  chatSessionId String
+  role          ChatRole
+  content       String   @db.Text
+  sources       Json? // string[] of file paths
+  createdAt     DateTime @default(now())
+
+  chatSession ChatSession @relation(fields: [chatSessionId], references: [id], onDelete: Cascade)
+}
+
+// =====================================================================
+// Phase 2+ — canonical model stubs (not yet populated by any job).
+// Present now so the vector store and future symbol/graph/wiki/change
+// intelligence work don't force a schema rewrite later.
+// =====================================================================
+
+model RepositoryFile {
+  id           String  @id @default(cuid())
+  repositoryId String
+  snapshotId   String
+  path         String
+  language     String?
+  contentHash  String
+  imports      String[] @default([]) // raw import specifiers, resolved client-side relative to path
+
+  repository Repository         @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  snapshot   RepositorySnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+  symbols    RepositorySymbol[]
+
+  @@index([repositoryId, path])
+}
+
+model RepositorySymbol {
+  id            String  @id @default(cuid())
+  fileId        String
+  name          String
+  symbolType    String // function | class | method | route | model | ...
+  startLine     Int
+  endLine       Int
+  parentSymbol  String?
+
+  file          RepositoryFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  fromRelations RepositoryRelationship[] @relation("FromSymbol")
+  toRelations   RepositoryRelationship[] @relation("ToSymbol")
+}
+
+model RepositoryRelationship {
+  id           String @id @default(cuid())
+  fromSymbolId String
+  toSymbolId   String
+  kind         String // calls | imports | extends | depends_on ...
+
+  fromSymbol RepositorySymbol @relation("FromSymbol", fields: [fromSymbolId], references: [id], onDelete: Cascade)
+  toSymbol   RepositorySymbol @relation("ToSymbol", fields: [toSymbolId], references: [id], onDelete: Cascade)
+}
+
+model WikiPage {
+  id           String   @id @default(cuid())
+  repositoryId String
+  slug         String
+  title        String
+  content      String   @db.Text
+  freshness    Float? // 0..1
+  sourceCommit String?
+  updatedAt    DateTime @updatedAt
+
+  repository Repository       @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  sources    WikiPageSource[]
+
+  @@unique([repositoryId, slug])
+}
+
+model WikiPageSource {
+  id         String @id @default(cuid())
+  wikiPageId String
+  path       String
+  startLine  Int?
+  endLine    Int?
+
+  wikiPage WikiPage @relation(fields: [wikiPageId], references: [id], onDelete: Cascade)
+}
+
+model Commit {
+  id           String   @id @default(cuid())
+  repositoryId String
+  sha          String
+  message      String?
+  authoredAt   DateTime?
+
+  repository    Repository     @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  changeReports ChangeReport[]
+
+  @@unique([repositoryId, sha])
+}
+
+model ChangeReport {
+  id           String   @id @default(cuid())
+  repositoryId String
+  commitId     String?
+  baseSha      String? // compare base (previous indexed head)
+  headSha      String? // compare head (new head)
+  summary      String   @db.Text
+  affected     Json? // { files: string[], symbols: string[], wikiPages: string[], importers: string[] }
+  createdAt    DateTime @default(now())
+
+  repository Repository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  commit     Commit?    @relation(fields: [commitId], references: [id])
+}
