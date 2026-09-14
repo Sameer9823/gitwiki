@@ -1,163 +1,201 @@
-# Codexa — Phase 1 + 2 + 3
+# Codexa — AI-Native Repository Intelligence
 
-Next.js (App Router, TypeScript) rebuild — Codexa (previously git-wiki-build). Phase 1: authentication,
-canonical Postgres/Prisma store, repository connect flow, dashboard, chat. Phase 2:
-AST symbol extraction, semantic chunking, hybrid retrieval, line-range citations.
-Phase 3: Living Wiki — pages planned per-repo and written from the same hybrid
-retrieval, with freshness tracking anchored to the indexed commit.
+**Chat with your codebase · Living Wiki · Architecture Graph · Change Intelligence**
 
-## Phase 2 — Knowledge Layer
+Codexa indexes any GitHub repository (private or public) into a canonical Postgres store + Pinecone vector projection, then lets you chat, browse files, visualize dependencies, and keep a living wiki fresh against the indexed commit.
 
-- **Symbol extraction** (`src/lib/symbolExtractor.ts`): Babel-based AST parsing for the
-  JS/TS family (`.js .jsx .mjs .cjs .ts .tsx`), extracting functions, classes, methods,
-  interfaces, type aliases, and a heuristic pass for Express-style routes
-  (`app.get("/login", ...)` → `RepositorySymbol{symbolType: "route"}`). Unsupported
-  languages and parse failures degrade gracefully to "no symbols for this file" rather
-  than failing the run — the file is still recorded, just without symbols.
-- **Semantic chunking** (`src/lib/chunker.ts`): one chunk per top-level symbol, tagged
-  with `symbolName` / `symbolType` / `startLine` / `endLine` in Pinecone metadata, plus
-  chunks for the gaps between symbols (imports, top-level config) so nothing outside a
-  function body is dropped. Files with no extracted symbols fall back to the original
-  plain recursive-character split.
-- **Canonical storage**: `indexRepo` now writes `RepositoryFile` + `RepositorySymbol`
-  rows per indexed file, linked to the snapshot — the symbol graph Phase 4
-  (Architecture Explorer) will read from.
-- **Hybrid retrieval** (`src/lib/hybridSearch.ts`): pulls identifier-like tokens
-  (camelCase/snake_case/paths) out of the question, looks them up against known
-  symbols/paths in Postgres, and uses a Pinecone metadata filter to *guarantee* that
-  exact match is included in context — merged with normal semantic vector search. So
-  "where is `generateToken`?" reliably surfaces that function even if it isn't the
-  closest semantic match.
-- **Richer citations**: chat answers now cite `path:startLine-endLine — symbolName`
-  instead of just a file path.
+> Built on Next.js 15 (App Router) + TypeScript + Prisma + Pinecone + Inngest.
 
-## Phase 3 — Living Wiki
+---
 
-- **Wiki Planner** (`src/lib/wiki/planner.ts`): looks at what's actually in the indexed
-  snapshot — manifest files, path patterns, route/symbol counts — and only proposes
-  pages with real material behind them. No `package.json`/`requirements.txt` → no
-  Getting Started page. No auth-looking files → no Authentication page. Every repo
-  gets Overview and Project Structure; everything else is conditional.
-- **Wiki Writer** (`src/lib/wiki/writer.ts`): runs the same hybrid retrieval used by
-  chat (wider `topK`) against a per-page query, then asks the LLM to write the page
-  using only those sources — told explicitly not to invent behavior that isn't shown.
-- **Trigger**: `indexRepo` fires `wiki/generate.requested` as its last step, so a wiki
-  regenerates automatically after every (re-)index. `generateWiki` (Inngest function)
-  writes each planned page as its own step — one page failing doesn't lose the others,
-  and each is independently retryable.
-- **Freshness**: every generated page stores `sourceCommit` (now captured from GitHub
-  at index time — `RepositorySnapshot.commitSha`) and starts at `freshness: 1.0`.
-  Recalculating that score down when source files drift from `sourceCommit` is Phase 5
-  (Change Intelligence) — the field and the commit anchor it needs already exist.
-- **UI**: repo pages now have Chat / Wiki tabs. Wiki index lists generated pages;
-  each page renders as markdown with a sidebar, freshness badge, and a source list
-  (`path:startLine-endLine`) at the bottom.
+## Features
 
-Still not built: Architecture Explorer, Code Explorer, GitHub webhooks, incremental
-indexing, dependency-relationship extraction, Change Intelligence itself, streaming
-chat, multi-agent split beyond Planner/Writer.
+| Area | What ships |
+|---|---|
+| **Auth** | GitHub OAuth via NextAuth v5 (Auth.js). Prisma `database` sessions. First login auto-creates a personal `Organization`. Org invites (`Invite` + email token). |
+| **Repository connect** | Paste `owner/repo` or GitHub URL → creates `Repository` + `RepositorySnapshot` (`PENDING → RUNNING → COMPLETED/FAILED`) → Inngest `indexRepo` job. Poll real status on dashboard. |
+| **Indexing pipeline** (`indexRepo`) | Octokit `getTree` → skip binaries/lockfiles/large files → first 200 blobs → Babel AST symbol extraction (functions/classes/methods/interfaces/routes) → symbol-aware chunking → embed (`text-embedding-3-small`) → Pinecone `saveChunks` → persist `RepositoryFile`/`RepositorySymbol` linked to snapshot. |
+| **Hybrid RAG Chat** | `/api/chat` + `/api/chat/stream` (SSE) — keyword pass over Postgres symbols/paths (metadata-filtered Pinecone) merged with semantic vector search. Sources cited as `path:startLine-endLine — symbolName`. Sessions via `ChatSession`/`ChatMessage`. |
+| **Living Wiki** | `wiki/planner.ts` proposes only pages with material in the snapshot; `wiki/writer.ts` writes each page from hybrid context (wider `topK`) with guardrails not to invent. `generateWiki` Inngest function writes pages independently (retryable). `freshness: 1.0` + `sourceCommit` anchored to indexed SHA. UI: `/repo/[id]/wiki` + `/wiki/[slug]` (markdown, TOC, freshness badge, sources). |
+| **Code Explorer** | `/repo/[id]/explorer` — file tree from `RepositoryFile` (with root-level files fix), filter, breadcrumb, live file fetch via `octokit.repos.getContent` with tree-scan fallback. |
+| **Architecture Graph** | `/repo/[id]/architecture` — React Flow (`@xyflow/react`) graph from `dependencies.ts` + `RepositoryRelationship`. |
+| **Change Intelligence** | `/repo/[id]/changes` — `ChangeReport` + `Commit` anchored diffs; `processPush` Inngest on GitHub webhook. |
+| **Insights & Health** | `/repo/[id]/dashboard` + `/insights` — snapshot counts, `freshness` avg, `StatusBadge`, `MetricCard`/`DashboardMetrics` (Client wrapper fixes RSC `icon` serialization). |
+| **Rate limiting & security** | `withRateLimit` (`@upstash/ratelimit` + Redis), `securityHeaders` middleware, `errors.ts` structured handlers, `middleware.ts` auth gate + callback redirects. |
+| **Theming & motion** | Semantic CSS-variable tokens (`tailwind.config.ts` + `globals.css`) — dark/light via `theme-toggle`. GSAP (`@gsap/react`) staggered reveals + counter animations in `src/lib/animations/*`. |
+| **Observability** | `@sentry/nextjs` (client/edge/server), logging middleware, `EmptyState`/`StatusBadge` UI. |
 
-## What's implemented (Phase 1)
+---
 
-- **Auth**: GitHub OAuth via NextAuth v5, Prisma-backed sessions. First sign-in
-  auto-creates a personal `Organization` (multi-member orgs are a later phase).
-- **Repository connect**: paste `owner/repo` or a GitHub URL → creates a
-  `Repository` + `RepositorySnapshot` row → fires the existing indexing pipeline
-  as an Inngest background job.
-- **Indexing** (`src/lib/inngest/functions/indexRepo.ts`): same steps as the
-  original — fetch tree via Octokit, recursive-character chunk, embed, upsert
-  to Pinecone — now also writes progress/result into `RepositorySnapshot`
-  (`PENDING → RUNNING → COMPLETED/FAILED`) so the UI can poll real status
-  instead of guessing.
-- **Chat**: `/api/chat` runs the same vector-search + GPT-4o-mini RAG call
-  synchronously (not through Inngest — a chat box needs an answer back on the
-  same request, which is why this one route diverges from the original's
-  event-driven pattern) and persists `ChatSession`/`ChatMessage` rows.
-- **Dashboard & repository page**: list connected repos with live status
-  badges; open one to chat once indexing completes.
+## Stack
 
-## What's intentionally NOT built yet (later phases per the plan)
+`Next.js 15 · React 19 · TypeScript 5 · Tailwind CSS · Prisma 6 · PostgreSQL (Neon) · Pinecone · OpenAI (gpt-4o-mini + text-embedding-3-small) · Inngest · Upstash Redis · Octokit · LangChain · Shiki · GSAP · Sentry · XYFlow`
 
-- Living Wiki, Architecture Explorer, Code Explorer, Change Intelligence, GitHub
-  webhooks, incremental indexing, AST/symbol extraction, hybrid (keyword + graph)
-  retrieval, streaming chat responses, multi-agent split, rate limiting, tests.
-- The Prisma schema already includes the Phase 2+ tables (`RepositoryFile`,
-  `RepositorySymbol`, `RepositoryRelationship`, `WikiPage`, `Commit`,
-  `ChangeReport`, ...) so those phases won't require a breaking migration —
-  they're just unpopulated for now.
-- Organizations are single-member only; there's no invite flow.
+---
 
-## Running it
+## Quick start
 
 ```bash
 npm install
-cp .env.example .env      # fill in the values below
-npx prisma migrate dev    # creates tables in your Postgres database
+cp .env.example .env   # fill values (see below)
+npx prisma migrate dev # or prisma migrate deploy in prod
+npx prisma generate
 npm run dev
 ```
 
-In a second terminal, run the Inngest dev server so background indexing jobs execute:
+In a second terminal (background indexing must run):
 
 ```bash
 npx inngest-cli@latest dev
 ```
 
-### Environment variables
+Open http://localhost:3000 → Login with GitHub → Dashboard → Connect repo (`owner/repo`).
+
+### Docker (optional)
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up      # dev
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d  # prod
+```
+
+Services: `postgres` (16-alpine), `redis` (7-alpine), `app` (runner). See `docker-compose.yml`.
+
+---
+
+## Environment variables
+
+Copy `.env.example` → `.env`. Never commit `.env` (ignored). Backups like `.env.bak`, `*.bak`, `prisma/_bak/` are also ignored — GitHub push protection (GH013) will block pushes containing secrets.
 
 | Variable | Purpose |
 |---|---|
-| `DATABASE_URL` | Postgres connection string — the canonical store |
-| `AUTH_SECRET` | Random string for NextAuth session encryption (`openssl rand -base64 32`) |
-| `AUTH_GITHUB_ID` / `AUTH_GITHUB_SECRET` | GitHub OAuth app credentials (callback URL: `http://localhost:3000/api/auth/callback/github`) |
-| `GITHUB_TOKEN` | Fallback token for indexing if a signed-in user hasn't granted repo scope |
-| `OPENAI_API_KEY` | Embeddings (`text-embedding-3-small`) + chat (`gpt-4o-mini`) |
-| `PINECONE_API_KEY` / `PINECONE_INDEX` | Vector projection store — create the index in Pinecone first |
-| `INNGEST_EVENT_KEY` / `INNGEST_SIGNING_KEY` | Only required in production; the local `inngest dev` server needs neither |
+| `DATABASE_URL` | **Pooler** Postgres URL for the app (`…-pooler…?sslmode=require`). Used at runtime + by `prisma studio`. |
+| `DIRECT_URL` | **Direct** Postgres URL for migrations (`…` *without* `-pooler` … `?sslmode=require`). Required — `prisma migrate` fails on the pooler (`P1001`). See `prisma/schema.prisma:directUrl`. |
+| `AUTH_SECRET` | `openssl rand -base64 32` — NextAuth encryption. |
+| `AUTH_GITHUB_ID` / `AUTH_GITHUB_SECRET` | GitHub OAuth app. Callback: `http://localhost:3000/api/auth/callback/github` (add prod URL too). Scopes: `read:user user:email repo`. |
+| `GITHUB_TOKEN` | Fallback PAT for indexing unauthenticated / public repos. Signed-in user's own token is preferred (`getGithubTokenForUser`). |
+| `OPENAI_API_KEY` | Embeddings + chat. |
+| `PINECONE_API_KEY` / `PINECONE_INDEX` | Vector store index (default `git-wiki`). Create before first index. |
+| `INNGEST_EVENT_KEY` / `INNGEST_SIGNING_KEY` | Required in prod; local `inngest dev` needs neither. `INNGEST_DEV=1` for local. |
+| `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | Rate limiting (optional local: use docker `redis:6379`). |
+| `SENTRY_*` / `NEXT_PUBLIC_SENTRY_DSN` | Optional — Sentry ingestion. |
+
+> **Neon tip — `P1001` can't reach database:**
+> - `DATABASE_URL` = pooler host (`…-pooler.c-5…`), `DIRECT_URL` = same host **without** `-pooler.` and with `?sslmode=require`.
+> - Do **not** append `&channel_binding=require` — it breaks `libquery-engine` on Prisma 6.19.x even though TCP is open. After any `.env` change run `npx prisma generate` and **restart `next dev`** (Prisma is cached in `globalForPrisma` at boot).
+
+---
+
+## Database & Prisma
+
+```prisma
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+```
+
+- `prisma/schema.prisma` is the source of truth — Phase 2+ tables (`RepositoryFile`, `RepositorySymbol`, `RepositoryRelationship`, `WikiPage`, `Commit`, `ChangeReport`, etc.) already exist so future features do not need a breaking migration.
+- Current migrations: `20260908180611_ndefined`, `20260911051704`, `20260912_codexa_displayname_sessions`, `20260913153012`.
+- One bad migration (`20260911092307`) was tombstoned under `prisma/_bak/` (ignored). If you see divergence, `npx prisma migrate status` → `migrate resolve --rolled-back <name>` → `migrate deploy`.
+
+---
 
 ## Folder structure
 
 ```
-prisma/schema.prisma          canonical model (Phase 1 tables + Phase 2+ stubs)
-src/lib/
-  auth.ts                     NextAuth config + getGithubTokenForUser
-  prisma.ts                   Prisma client singleton
-  org.ts                      personal-organization bootstrap
-  github.ts                   ported: parseRepo, fetchRepoFiles
-  symbolExtractor.ts          Phase 2: Babel AST symbol extraction, per-language
-  chunker.ts                  Phase 2: symbol-aware chunking (was plain recursive split)
-  vectorStore.ts              saveChunks, search + searchByVector with metadata filter
-  hybridSearch.ts             Phase 2: keyword (Postgres) + vector (Pinecone) merge
-  rag.ts                      askQuestion — now uses hybridSearch, structured citations
-  wiki/
-    planner.ts                Phase 3: decides which wiki pages apply to this repo
-    writer.ts                 Phase 3: generates one page's markdown from hybrid context
-  inngest/
-    client.ts
-    functions/
-      indexRepo.ts             ported indexRepo, now persists files/symbols, fires wiki gen
-      generateWiki.ts          Phase 3: plans + writes + persists wiki pages
-src/app/
-  page.tsx                    landing
-  login/page.tsx              GitHub sign-in
-  dashboard/page.tsx          repo list + connect form
-  repo/[id]/
-    page.tsx                   chat tab
-    tabs.tsx                   Chat / Wiki tab bar
-    wiki/page.tsx               wiki page list
-    wiki/[slug]/page.tsx         wiki page detail (markdown, freshness, sources)
-  api/
-    auth/[...nextauth]/route.ts
-    inngest/route.ts
-    repositories/route.ts     GET list / POST connect+index
-    repositories/[id]/route.ts
-    chat/route.ts
-src/components/ui/            button, card, input, status badge
-middleware.ts                 protects /dashboard and /repo
+prisma/schema.prisma
+src/
+  lib/
+    auth.ts                 NextAuth + PrismaAdapter + getGithubTokenForUser
+    prisma.ts               Prisma singleton (globalForPrisma)
+    org.ts                  ensurePersonalOrganization
+    github.ts               parseRepo, fetchRepoFiles (Octokit, skip dirs/exts, cap 200 files)
+    symbolExtractor.ts      Babel AST → RepositorySymbol
+    chunker.ts              symbol-aware chunking (fallback: recursive split)
+    dependencies.ts         import graph → RepositoryRelationship
+    vectorStore.ts          saveChunks, search, searchByVector (metadata filter)
+    hybridSearch.ts         keyword (Postgres) + vector (Pinecone) merge
+    rag.ts                  askQuestion + citations path:line—symbol
+    ratelimit.ts / withRateLimit.ts
+    errors.ts               structured error handlers
+    wiki/planner.ts         conditional page plan from snapshot signals
+    wiki/writer.ts          per-page hybrid context → markdown
+    incremental.ts          incremental indexing helpers
+    inngest/{client.ts,functions/{indexRepo.ts,generateWiki.ts,processPush.ts}}
+    animations/{gsap.ts,reveal.ts,stagger.ts,counters.ts,pageTransitions.ts}
+  middleware/securityHeaders.ts
+  app/
+    page.tsx                landing
+    login/page.tsx
+    dashboard/{page.tsx,dashboard-client.tsx,connect-repo-form.tsx}
+    invite/[token]/page.tsx
+    repo/[id]/
+      layout.tsx            repo shell + sidebar
+      page.tsx              redirect → dashboard
+      dashboard/page.tsx    snapshot health (DashboardMetrics client wrapper)
+      explorer/{page.tsx,ExplorerClient.tsx}  file tree + live viewer
+      architecture/{page.tsx,ArchitectureGraph.tsx}
+      changes/{page.tsx,ChangesList.tsx}
+      wiki/{page.tsx,[slug]/{page.tsx,wiki-client.tsx}}
+      insights/page.tsx  settings/{page.tsx,settings-client.tsx}  integrations/page.tsx
+      chat-panel.tsx
+    api/
+      auth/[...nextauth]/route.ts  inngest/route.ts  health/route.ts
+      repositories/{route.ts,[id]/{route.ts,files/route.ts,graph/route.ts,changes/route.ts,reindex/route.ts}}
+      chat/{route.ts,stream/route.ts,sessions/{route.ts,[id]/route.ts}}
+      organizations/[id]/invites/route.ts  webhooks/github/route.ts
+  components/
+    app-shell/{repo-sidebar.tsx,top-bar.tsx,command-palette.tsx,theme-toggle.tsx,…}
+    repo/{dashboard-metrics.tsx,metric-card.tsx,metric-grid.tsx,repo-header.tsx}
+    chat/{chat-input.tsx,chat-message.tsx,session-sidebar.tsx}
+    ui/{button,input,badge,card,empty-state,dialog,skeleton,…}
+    landing/hero-diagram.tsx
+middleware.ts               auth gate + securityHeaders
+next.config.mjs             web-tree-sitter externals, ignore-loader for tests
+tailwind.config.ts          semantic tokens, typography scale, spacing rhythm
+tests/{chunking,dependencies,ratelimit}.test.ts
 ```
 
-## Next phase
+---
 
-Phase 4 (Architecture Intelligence) builds on `RepositorySymbol` directly: populate
-`RepositoryRelationship` (calls/imports/extends between symbols) during indexing, then
-add the Architecture Explorer (React Flow graph) and Code Explorer UI on top of data
-this phase already produces.
+## API routes
+
+`GET /api/repositories` · `POST /api/repositories` (connect+index) · `GET/DELETE /api/repositories/[id]` · `GET /api/repositories/[id]/files[?path=]` · `GET /api/repositories/[id]/graph` · `GET /api/repositories/[id]/changes` · `POST /api/repositories/[id]/reindex` · `POST /api/chat` · `POST /api/chat/stream` (SSE, `auth` gated) · `GET/POST /api/chat/sessions` · `PATCH/DELETE /api/chat/sessions/[id]` · `POST/GET /api/organizations/[id]/invites` · `POST /api/webhooks/github` · `POST/PUT /api/inngest` · `GET /api/health`
+
+---
+
+## Testing
+
+```bash
+npm test            # jest + ts-jest (tests/setup.ts mocks)
+```
+
+Suites: `chunking.test.ts` · `dependencies.test.ts` · `ratelimit.test.ts`. Ignored in prod build via `ignore-loader`.
+
+---
+
+## Troubleshooting
+
+| Symptom | Fix |
+|---|---|
+| `P1001 can't reach database … -pooler …:5432` | Migrations need `DIRECT_URL` (direct host, no `-pooler`, `?sslmode=require`). App keeps pooler `DATABASE_URL`. Run `npx prisma generate` + restart `next dev`. Remove `&channel_binding=require` if present. |
+| `P3006 migration failed on shadow DB` | Bad/stale migration. `npx prisma migrate status` → `migrate resolve --rolled-back <name>` → `migrate deploy`. Keep `prisma/_bak` ignored. |
+| `Only plain objects can be passed to Client Components — icon={FileCode}` | Don't pass component types from Server → Client. Import icons inside the Client component (see `dashboard-metrics.tsx`). |
+| Explorer shows `0 files` though snapshot is `COMPLETED` | Fixed: parent for root-level files is `""`, not `slice(0,-1)`. If seen again, check `src/app/api/repositories/[id]/files/route.ts`. |
+| `AdapterError / SessionTokenError` after `.env` edit | Restart `next dev` + `inngest dev`. Next caches `DATABASE_URL` at boot via `globalForPrisma`. |
+| `GH013 push blocked — secrets` | Never commit `.env*`/`*.bak`/`prisma/_bak`. The repo now ignores them; reset to `origin/master` and rebuild the commit without the file. Rotate any leaked keys. |
+
+---
+
+## Roadmap
+
+- Wiki `freshness` recalculation on drift (Phase 5 Change Intelligence already has `sourceCommit` anchor)
+- Incremental indexing (skip unchanged blobs)
+- Streaming chat UX polish + multi-agent Planner/Writer split
+
+---
+
+## License
+
+Private — all rights reserved unless a `LICENSE` file is added.
