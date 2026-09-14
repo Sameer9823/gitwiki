@@ -94,7 +94,7 @@ export function SessionSidebar({ repositoryId, sessions, activeId, onSelect, onC
                         value={editValue}
                         onChange={(e) => setEditValue(e.target.value)}
                         onKeyDown={(e) => { if (e.key === "Enter") saveEdit(); if (e.key === "Escape") setEditingId(null); }}
-                        className="min-w-0 flex-1 bg-transparent px-2 py-1 text-sm text-text outline-none"
+                        className="min-w-0 flex-1 rounded bg-transparent px-2 py-1 text-sm text-text outline-none ring-1 ring-primary/40 focus:ring-primary"
                         aria-label="Edit chat title"
                       />
                       <button onClick={saveEdit} className="rounded px-2 py-1 text-xs font-medium text-accent hover:bg-accent/10">Save</button>

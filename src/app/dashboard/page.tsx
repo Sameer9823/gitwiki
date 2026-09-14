@@ -5,7 +5,9 @@ import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ConnectRepoForm } from "./connect-repo-form";
 import { DashboardClient } from "./dashboard-client";
-import { SiteHeader } from "@/components/site-header";
+import { TopBar } from "@/components/app-shell/top-bar";
+import { CommandPalette } from "@/components/app-shell/command-palette";
+import { signOutAction } from "@/app/actions/sign-out";
 
 export default async function DashboardPage() {
   const session = await auth();
@@ -24,8 +26,8 @@ export default async function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-background codexa-grid-soft">
-      <SiteHeader />
-      <main className="mx-auto max-w-5xl codexa-enter px-4 py-8 sm:px-6 sm:py-10">
+      <TopBar user={session.user} onSignOut={signOutAction} />
+      <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-10">
         <div className="mb-8">
           <p className="font-mono text-xs uppercase tracking-widest text-text-muted">{org.name}</p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight text-text">Repositories</h1>
@@ -49,6 +51,7 @@ export default async function DashboardPage() {
           <DashboardClient repositories={safeRepositories as never} />
         )}
       </main>
+      <CommandPalette />
     </div>
   );
 }

@@ -8,17 +8,34 @@ export default async function LoginPage() {
   if (session?.user?.id) redirect("/dashboard");
 
   return (
-    <main className="flex min-h-screen flex-col bg-background">
-      <header className="flex h-14 items-center border-b border-border px-6">
+    <main className="grid min-h-screen bg-background codexa-grid-soft lg:grid-cols-2">
+      <div className="hidden flex-col justify-between border-r border-border p-10 lg:flex">
         <Link href="/" className="flex items-center gap-2">
-          <span className="flex h-7 w-7 items-center justify-center rounded-md bg-accent text-xs font-bold text-white">C</span>
+          <span className="flex h-7 w-7 items-center justify-center rounded-md text-xs font-bold text-white codexa-neon">C</span>
           <span className="text-sm font-semibold tracking-tight text-text">Codexa</span>
         </Link>
-      </header>
+        <div className="max-w-sm codexa-hero-glow">
+          <p className="mb-3 font-mono text-xs uppercase tracking-widest text-text-muted">AI-powered repository intelligence</p>
+          <h1 className="text-3xl font-semibold leading-tight tracking-tight text-text">
+            Your codebase,
+            <br />
+            <span className="codexa-neon-text">understood.</span>
+          </h1>
+          <p className="mt-4 text-sm leading-relaxed text-text-muted">
+            Codexa indexes your repository, builds a living wiki, and answers questions with citations back to real source lines.
+          </p>
+        </div>
+        <p className="text-xs text-text-subtle">© {new Date().getFullYear()} Codexa</p>
+      </div>
+
       <div className="flex flex-1 items-center justify-center px-6 py-12">
         <div className="w-full max-w-sm rounded-xl border border-border bg-surface p-8 shadow-card">
-          <p className="font-mono text-xs uppercase tracking-widest text-text-muted">Codexa</p>
-          <h1 className="mt-2 text-xl font-medium text-text">Sign in to continue</h1>
+          <div className="mb-6 flex items-center gap-2 lg:hidden">
+            <span className="flex h-7 w-7 items-center justify-center rounded-md text-xs font-bold text-white codexa-neon">C</span>
+            <span className="text-sm font-semibold tracking-tight text-text">Codexa</span>
+          </div>
+          <p className="font-mono text-xs uppercase tracking-widest text-text-muted">Sign in</p>
+          <h2 className="mt-2 text-xl font-medium text-text">Continue to Codexa</h2>
           <p className="mt-2 text-sm leading-relaxed text-text-muted">
             Connect with GitHub to index repositories you can access. Private repos stay private to your workspace.
           </p>

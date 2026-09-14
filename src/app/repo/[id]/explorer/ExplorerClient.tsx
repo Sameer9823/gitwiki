@@ -214,7 +214,7 @@ export function ExplorerClient({ repositoryId }: { repositoryId: string; snapsho
                 <span className="flex h-4 w-4 shrink-0 items-center justify-center text-text-muted" aria-hidden>
                   {isExpanded ? <FolderOpen className="h-3.5 w-3.5" /> : <Folder className="h-3.5 w-3.5" />}
                 </span>
-                <span className="min-w-0 flex-1 truncate font-mono text-sm text-ink">{node.name}</span>
+                <span className="min-w-0 flex-1 truncate font-mono text-sm text-text">{node.name}</span>
                 {hasChildren && (
                   <span className="ml-auto shrink-0 font-mono text-[11px] text-text-muted">{node.children!.length}</span>
                 )}
@@ -236,7 +236,7 @@ export function ExplorerClient({ repositoryId }: { repositoryId: string; snapsho
             style={{ paddingLeft: 10 + depth * 14 }}
           >
             <span className={cn("h-2 w-2 shrink-0 rounded-full", langDot(node.language))} aria-hidden />
-            <span className="min-w-0 flex-1 truncate font-mono text-sm text-ink">{node.name}</span>
+            <span className="min-w-0 flex-1 truncate font-mono text-sm text-text">{node.name}</span>
             <span className="hidden shrink-0 rounded bg-surface-muted px-1 py-0.5 font-mono text-[10px] leading-none text-text-muted sm:inline">
               {extLabel(node.path)}
             </span>
@@ -358,9 +358,18 @@ export function ExplorerClient({ repositoryId }: { repositoryId: string; snapsho
             <span className="hidden h-7 w-7 shrink-0 items-center justify-center rounded-md bg-surface-muted font-mono text-[10px] text-text-muted sm:inline-flex">
               {selectedPath ? extLabel(selectedPath) : "—"}
             </span>
-            <span className="min-w-0 truncate font-mono text-sm text-text">
-              {selectedPath || "No file selected"}
-            </span>
+            {selectedPath ? (
+              <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1 overflow-x-auto font-mono text-sm text-text-muted">
+                {selectedPath.split("/").map((seg, i, arr) => (
+                  <span key={i} className="flex shrink-0 items-center gap-1">
+                    {i > 0 && <span className="text-text-subtle">/</span>}
+                    <span className={i === arr.length - 1 ? "text-text" : ""}>{seg}</span>
+                  </span>
+                ))}
+              </nav>
+            ) : (
+              <span className="min-w-0 truncate font-mono text-sm text-text">No file selected</span>
+            )}
           </div>
           {selectedPath && !loadingFile && !fileError && fileContent && (
             <Button variant="outline" size="sm" onClick={handleCopy} className="h-8 shrink-0 gap-1.5 font-mono text-xs">

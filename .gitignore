@@ -67,3 +67,9 @@ prisma/*.db-journal
 # Misc
 *.logbin/
 bin/
+
+# Secrets / backups — must never be committed (GH013 push protection)
+.env.bak
+.env.*.bak
+*.bak
+prisma/_bak/

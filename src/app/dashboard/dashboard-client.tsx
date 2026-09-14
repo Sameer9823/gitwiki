@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useToast } from "@/components/ui/toast";
 import { MoreHorizontal, Pencil, Trash2, RefreshCw, ExternalLink } from "lucide-react";
+import { useGSAP } from "@gsap/react";
+import { staggerReveal } from "@/lib/animations";
 
 interface Repo {
   id: string;
@@ -30,9 +32,21 @@ export function DashboardClient({ repositories: initial }: { repositories: Repo[
   const [deleteId, setDeleteId] = React.useState<string | null>(null);
   const [deleting, setDeleting] = React.useState(false);
 
+  const gridRef = React.useRef<HTMLDivElement>(null);
+
   React.useEffect(() => {
     setRepos(Array.isArray(initial) ? initial : []);
   }, [initial]);
+
+  // Entrance: repository cards reveal with a small stagger rather than
+  // popping in all at once (spec §20, §28).
+  useGSAP(
+    () => {
+      if (!gridRef.current) return;
+      staggerReveal(gridRef.current.querySelectorAll(":scope > .repo-dashboard-card"));
+    },
+    { dependencies: [repos.length], scope: gridRef }
+  );
 
   const handleRename = async () => {
     if (!renameId) return;
@@ -99,14 +113,14 @@ export function DashboardClient({ repositories: initial }: { repositories: Repo[
 
   return (
     <>
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div ref={gridRef} className="grid gap-3 sm:grid-cols-2">
         {repos.map((repo) => {
           const snap = repo.snapshots?.[0];
           const label = repo.displayName?.trim() ? repo.displayName : repo.fullName;
           return (
             <Card
               key={repo.id}
-              className="group relative flex flex-col p-4 transition-colors hover:bg-surface-hover"
+              className="repo-dashboard-card group relative flex flex-col p-4 transition-[transform,border-color,background-color] duration-150 ease-out hover:-translate-y-0.5 hover:border-border-strong hover:bg-surface-hover"
             >
               <div className="flex items-start justify-between gap-3">
                 <Link href={`/repo/${repo.id}`} className="min-w-0 flex-1">

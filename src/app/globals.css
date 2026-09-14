@@ -2,6 +2,45 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ===== Theme tokens (§32/§33/§42) =====
+   Dark is the default/primary experience; .light on <html> overrides.
+   Values are "R G B" triplets so Tailwind's rgb(var(..) / <alpha-value>)
+   pattern can apply opacity modifiers (e.g. bg-primary/12). */
+:root {
+  --color-background: 7 9 13;
+  --color-surface: 11 15 20;
+  --color-surface-muted: 15 20 27;
+  --color-surface-hover: 19 25 34;
+  --color-border: 255 255 255;
+  --color-text: 245 247 250;
+  --color-text-muted: 154 164 178;
+  --color-text-subtle: 102 112 133;
+  --color-primary: 124 92 255;
+  --color-primary-hover: 139 112 255;
+  --color-accent-secondary: 91 140 255;
+}
+
+.light {
+  --color-background: 247 248 250;
+  --color-surface: 255 255 255;
+  --color-surface-muted: 243 244 246;
+  --color-surface-hover: 234 235 239;
+  --color-border: 17 24 39;
+  --color-text: 17 24 39;
+  --color-text-muted: 75 85 99;
+  --color-text-subtle: 107 114 128;
+  --color-primary: 109 74 255;
+  --color-primary-hover: 96 61 245;
+  --color-accent-secondary: 59 110 230;
+}
+
+.light .codexa-grid,
+.light .codexa-grid-soft {
+  background-image:
+    linear-gradient(to right, rgba(17,24,39,0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(17,24,39,0.06) 1px, transparent 1px);
+}
+
 @layer components {
   /* Page layout utilities */
   .page-container {
@@ -39,51 +78,51 @@
     font-size: 1.5rem;
     line-height: 1.1;
     font-weight: 500;
-    color: #E6E9F0;
+    color: rgb(var(--color-text));
   }
 
   .text-page-subtitle {
     font-size: 1rem;
     line-height: 1.5;
-    color: #8B93A7;
+    color: rgb(var(--color-text-muted));
   }
 
   .text-section-heading {
     font-size: 1.125rem;
     line-height: 1.4;
     font-weight: 500;
-    color: #E6E9F0;
+    color: rgb(var(--color-text));
   }
 
   .text-card-title {
     font-size: 1rem;
     line-height: 1.4;
     font-weight: 500;
-    color: #E6E9F0;
+    color: rgb(var(--color-text));
   }
 
   .text-body {
     font-size: 0.9375rem;
     line-height: 1.6;
-    color: #E6E9F0;
+    color: rgb(var(--color-text));
   }
 
   .text-body-sm {
     font-size: 0.875rem;
     line-height: 1.5;
-    color: #E6E9F0;
+    color: rgb(var(--color-text));
   }
 
   .text-secondary {
     font-size: 0.875rem;
     line-height: 1.5;
-    color: #8B93A7;
+    color: rgb(var(--color-text-muted));
   }
 
   .text-caption {
     font-size: 0.75rem;
     line-height: 1.4;
-    color: #6B7387;
+    color: rgb(var(--color-text-subtle));
   }
 
   .text-code {
@@ -457,19 +496,19 @@ html, body {
       linear-gradient(to bottom, rgba(42,48,64,0.14) 1px, transparent 1px);
     background-size: 28px 28px;
   }
-  /* Restrained neon gradient — cyan -> blue -> violet */
+  /* Restrained accent gradient — indigo -> violet, the Codexa brand mark */
   .codexa-neon {
-    background: linear-gradient(135deg, #22d3ee 0%, #3b82f6 45%, #8b5cf6 100%);
+    background: linear-gradient(135deg, #5B8CFF 0%, #7C5CFF 100%);
   }
   .codexa-neon-text {
-    background: linear-gradient(135deg, #22d3ee 0%, #60a5fa 45%, #a78bfa 100%);
+    background: linear-gradient(135deg, #5B8CFF 0%, #7C5CFF 100%);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
   }
   .codexa-ring:focus-visible {
     outline: none;
-    box-shadow: 0 0 0 2px #10131A, 0 0 0 4px rgba(108,123,255,0.5);
+    box-shadow: 0 0 0 2px rgb(var(--color-background)), 0 0 0 4px rgba(124,92,255,0.5);
   }
 }
 
@@ -487,9 +526,9 @@ html, body {
     transition: border-color 150ms, transform 150ms, box-shadow 150ms, background-color 150ms;
   }
   .codexa-card-hover:hover {
-    border-color: rgba(108,123,255,0.35);
+    border-color: rgba(124,92,255,0.35);
     transform: translateY(-1px);
-    box-shadow: 0 4px 20px rgba(0,0,0,0.35), 0 0 0 1px rgba(108,123,255,0.12);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.35), 0 0 0 1px rgba(124,92,255,0.12);
   }
   /* Streaming pulse — gentle, not per-word */
   .codexa-pulse {
@@ -507,9 +546,9 @@ html, body {
     content: "";
     position: absolute;
     inset: -18% -8% -12% -8%;
-    background: radial-gradient(60% 60% at 30% 20%, rgba(34,211,238,0.18), transparent 60%),
-                radial-gradient(55% 55% at 78% 65%, rgba(139,92,246,0.18), transparent 62%),
-                radial-gradient(40% 40% at 55% 88%, rgba(59,130,246,0.14), transparent 65%);
+    background: radial-gradient(60% 60% at 30% 20%, rgba(124,92,255,0.18), transparent 60%),
+                radial-gradient(55% 55% at 78% 65%, rgba(91,140,255,0.16), transparent 62%),
+                radial-gradient(40% 40% at 55% 88%, rgba(124,92,255,0.12), transparent 65%);
     filter: blur(18px);
     pointer-events: none;
     z-index: 0;

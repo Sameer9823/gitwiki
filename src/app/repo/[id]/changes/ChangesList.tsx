@@ -24,6 +24,23 @@ function shortSha(s: string | null): string {
   return s ? s.slice(0, 7) : "—";
 }
 
+// Derived from real counts on the report — not a fabricated field. A rough
+// proxy for blast radius: more files/importers touched reads as more impact.
+function impactLevel(report: ChangeReport): "Low" | "Medium" | "High" {
+  const fileCount = report.affected?.files?.length ?? 0;
+  const importerCount = report.affected?.importers ? Object.keys(report.affected.importers).length : 0;
+  const score = fileCount + importerCount * 2;
+  if (score >= 12) return "High";
+  if (score >= 4) return "Medium";
+  return "Low";
+}
+
+const impactStyles: Record<string, string> = {
+  Low: "bg-surface-muted text-text-muted",
+  Medium: "bg-warning-bg text-warning border border-warning-border",
+  High: "bg-error-bg text-error border border-error-border",
+};
+
 function formatDate(iso: string): string {
   const d = new Date(iso);
   return d.toLocaleString(undefined, {
@@ -133,7 +150,7 @@ export function ChangesList({ repositoryId }: { repositoryId: string }) {
                 className={cn(
                   "w-full rounded-xl border px-3 py-3 text-left transition-all duration-150",
                   isActive
-                    ? "border-accent bg-accent/10 shadow-[0_0_0_1px_rgba(108,123,255,0.22)]"
+                    ? "border-primary bg-primary/10 shadow-[0_0_0_1px_rgba(124,92,255,0.22)]"
                     : "border-border bg-surface hover:border-border-strong hover:bg-surface-hover",
                 )}
               >
@@ -141,12 +158,15 @@ export function ChangesList({ repositoryId }: { repositoryId: string }) {
                   <span className={cn("rounded px-1.5 py-0.5", isActive ? "bg-accent text-white" : "bg-surface-muted text-text-muted")}>
                     {shortSha(report.baseSha)} → {shortSha(report.headSha)}
                   </span>
+                  <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium", impactStyles[impactLevel(report)])}>
+                    {impactLevel(report)}
+                  </span>
                   <span className="ml-auto flex items-center gap-1 text-text-muted">
                     <Clock className="h-3 w-3" />
                     {new Date(report.createdAt).toLocaleDateString()}
                   </span>
                 </div>
-                <p className="mt-2 line-clamp-2 text-sm font-medium leading-snug text-ink">{firstLine}</p>
+                <p className="mt-2 line-clamp-2 text-sm font-medium leading-snug text-text">{firstLine}</p>
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   <span className="inline-flex items-center gap-1 rounded-full bg-surface-muted px-2 py-0.5 font-mono text-xs text-text-muted">
                     <FileText className="h-3 w-3" /> {report.affected?.files?.length ?? 0} files
@@ -166,7 +186,12 @@ export function ChangesList({ repositoryId }: { repositoryId: string }) {
           <div className="p-5 sm:p-6">
             <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border pb-4">
               <div>
-                <h4 className="text-base font-semibold text-text">Change impact</h4>
+                <h4 className="flex items-center gap-2 text-base font-semibold text-text">
+                  Change impact
+                  <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium", impactStyles[impactLevel(selectedReport)])}>
+                    {impactLevel(selectedReport)}
+                  </span>
+                </h4>
                 <p className="mt-1 flex flex-wrap items-center gap-2 font-mono text-xs text-text-muted">
                   <span className="rounded bg-surface-muted px-1.5 py-0.5">
                     {shortSha(selectedReport.baseSha)} → {shortSha(selectedReport.headSha)}
@@ -186,7 +211,7 @@ export function ChangesList({ repositoryId }: { repositoryId: string }) {
               </a>
             </div>
 
-            <div className="prose prose-sm max-w-none mt-4 whitespace-pre-wrap break-words rounded-xl border border-border bg-surface-muted p-4 font-mono text-sm leading-relaxed text-ink">
+            <div className="prose prose-sm max-w-none mt-4 whitespace-pre-wrap break-words rounded-xl border border-border bg-surface-muted p-4 font-mono text-sm leading-relaxed text-text">
               {selectedReport.summary}
             </div>
 
@@ -221,7 +246,7 @@ export function ChangesList({ repositoryId }: { repositoryId: string }) {
                         .slice(0, 8)
                         .map(([file, importers]) => (
                           <li key={file} className="rounded bg-surface px-2 py-1 font-mono text-xs leading-relaxed text-text-muted">
-                            <span className="font-medium text-ink">{file}</span>
+                            <span className="font-medium text-text">{file}</span>
                             <span className="text-text-muted"> → {(importers as string[]).slice(0, 4).join(", ")}</span>
                             {(importers as string[]).length > 4 && (
                               <span className="text-text-muted"> +{(importers as string[]).length - 4} more</span>

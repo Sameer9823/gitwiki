@@ -1,9 +1,16 @@
 "use client";
 import * as React from "react";
 import { cn } from "@/lib/utils";
+import { CheckCircle2, XCircle, Info } from "lucide-react";
 
 type ToastKind = "success" | "error" | "info";
 interface ToastItem { id: string; message: string; kind: ToastKind; }
+
+const toastIcons: Record<ToastKind, React.ComponentType<{ className?: string }>> = {
+  success: CheckCircle2,
+  error: XCircle,
+  info: Info,
+};
 
 const ToastContext = React.createContext<{ showToast: (msg: string, kind?: ToastKind) => void } | null>(null);
 
@@ -24,11 +31,15 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     <ToastContext.Provider value={{ showToast }}>
       {children}
       <div aria-live="polite" className="pointer-events-none fixed bottom-6 right-6 z-50 flex flex-col gap-2">
-        {toasts.map((t) => (
-          <div key={t.id} className={cn("toast pointer-events-auto", t.kind === "success" && "toast-success", t.kind === "error" && "toast-error", t.kind === "info" && "toast-info")}>
-            <span className="text-sm">{t.message}</span>
-          </div>
-        ))}
+        {toasts.map((t) => {
+          const Icon = toastIcons[t.kind];
+          return (
+            <div key={t.id} className={cn("toast pointer-events-auto", t.kind === "success" && "toast-success", t.kind === "error" && "toast-error", t.kind === "info" && "toast-info")}>
+              <Icon className={cn("h-4 w-4 shrink-0", t.kind === "success" && "text-success", t.kind === "error" && "text-error", t.kind === "info" && "text-info")} aria-hidden="true" />
+              <span className="text-sm">{t.message}</span>
+            </div>
+          );
+        })}
       </div>
     </ToastContext.Provider>
   );

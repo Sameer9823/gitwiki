@@ -5,54 +5,57 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Semantic color tokens
+        // Semantic color tokens — backed by CSS variables (see globals.css
+        // :root / .light) so the whole app retheme with one class toggle.
         primary: {
-          DEFAULT: "#6C7BFF",
-          hover: "#5A6AE8",
+          DEFAULT: "rgb(var(--color-primary) / <alpha-value>)",
+          hover: "rgb(var(--color-primary-hover) / <alpha-value>)",
           foreground: "#FFFFFF",
         },
         accent: {
-          DEFAULT: "#6C7BFF",
-          hover: "#5A6AE8",
+          DEFAULT: "rgb(var(--color-primary) / <alpha-value>)",
+          hover: "rgb(var(--color-primary-hover) / <alpha-value>)",
+          secondary: "rgb(var(--color-accent-secondary) / <alpha-value>)",
           foreground: "#FFFFFF",
         },
-        background: "#10131A",
-        surface: "#171B24",
-        "surface-muted": "#1E2330",
-        "surface-hover": "#242936",
-        border: "#2A3040",
-        "border-strong": "#3A4050",
-        text: "#E6E9F0",
-        "text-muted": "#8B93A7",
-        "text-subtle": "#6B7387",
+        background: "rgb(var(--color-background) / <alpha-value>)",
+        surface: "rgb(var(--color-surface) / <alpha-value>)",
+        "surface-muted": "rgb(var(--color-surface-muted) / <alpha-value>)",
+        "surface-hover": "rgb(var(--color-surface-hover) / <alpha-value>)",
+        border: "rgb(var(--color-border) / 0.08)",
+        "border-strong": "rgb(var(--color-border) / 0.16)",
+        text: "rgb(var(--color-text) / <alpha-value>)",
+        "text-muted": "rgb(var(--color-text-muted) / <alpha-value>)",
+        "text-subtle": "rgb(var(--color-text-subtle) / <alpha-value>)",
         success: {
-          DEFAULT: "#4FD1A5",
+          DEFAULT: "#22C55E",
           bg: "#0E2A1E",
           border: "#1E4D3A",
         },
         warning: {
-          DEFAULT: "#F2B85C",
+          DEFAULT: "#F59E0B",
           bg: "#2E240A",
           border: "#4D3A0F",
         },
         error: {
-          DEFAULT: "#EF6B6B",
+          DEFAULT: "#EF4444",
           bg: "#2E0E0E",
           border: "#4D1A1A",
         },
         info: {
-          DEFAULT: "#6C7BFF",
+          DEFAULT: "#38BDF8",
           bg: "#0E142E",
           border: "#1A244D",
         },
-        // Legacy aliases for backward compatibility
-        bg: "#10131A",
-        "surface-2": "#1E2330",
-        ink: "#E6E9F0",
-        muted: "#8B93A7",
-        gold: "#F2B85C",
-        danger: "#EF6B6B",
-        good: "#4FD1A5",
+        // Legacy aliases — kept theme-reactive (same CSS vars as their
+        // modern counterparts) since they're still used throughout the app.
+        bg: "rgb(var(--color-background) / <alpha-value>)",
+        "surface-2": "rgb(var(--color-surface-muted) / <alpha-value>)",
+        ink: "rgb(var(--color-text) / <alpha-value>)",
+        muted: "rgb(var(--color-text-muted) / <alpha-value>)",
+        gold: "#F59E0B",
+        danger: "#EF4444",
+        good: "#22C55E",
       },
       fontFamily: {
         sans: ["var(--font-sans)", "system-ui", "sans-serif"],

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ReactFlow,
   Node,
@@ -22,6 +22,8 @@ import { Search, Maximize2, RotateCcw, Network, AlertTriangle, Layers, FileCode 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
+import { useGSAP } from "@gsap/react";
+import { gsap, prefersReducedMotion, EASE } from "@/lib/animations";
 
 interface GraphNodeData {
   label: string;
@@ -56,13 +58,13 @@ function FileNode({ data, selected }: { data: GraphNodeData } & { selected?: boo
       className={cn(
         "group flex min-w-[132px] max-w-[220px] flex-col gap-1 rounded-lg border bg-surface px-3 py-2 text-xs shadow-card transition-all duration-150 select-none",
         selected
-          ? "border-accent shadow-[0_0_0_1px_rgba(108,123,255,0.5),0_4px_16px_rgba(108,123,255,0.18)]"
+          ? "border-primary shadow-[0_0_0_1px_rgba(124,92,255,0.5),0_4px_16px_rgba(124,92,255,0.18)]"
           : "border-border hover:border-border-strong hover:shadow-card-hover",
       )}
     >
       <div className="flex min-w-0 items-center gap-1.5">
         <span className={cn("h-2 w-2 shrink-0 rounded-full", langDot(data.type))} />
-        <span className="truncate font-mono font-medium text-ink">{data.label}</span>
+        <span className="truncate font-mono font-medium text-text">{data.label}</span>
         <span className="ml-auto shrink-0 rounded bg-surface-muted px-1 py-0.5 font-mono text-[10px] leading-none text-text-muted">
           {langLabel(data.type)}
         </span>
@@ -71,12 +73,12 @@ function FileNode({ data, selected }: { data: GraphNodeData } & { selected?: boo
       <Handle
         type="target"
         position={Position.Left}
-        className="!h-2 !w-2 !border-2 !border-surface !bg-border group-hover:!bg-accent"
+        className="!h-2 !w-2 !border-2 !border-surface !bg-border group-hover:!bg-primary"
       />
       <Handle
         type="source"
         position={Position.Right}
-        className="!h-2 !w-2 !border-2 !border-surface !bg-border group-hover:!bg-accent"
+        className="!h-2 !w-2 !border-2 !border-surface !bg-border group-hover:!bg-primary"
       />
     </div>
   );
@@ -114,6 +116,8 @@ function GraphInner({ repositoryId, snapshotId }: { repositoryId: string; snapsh
   const [selected, setSelected] = useState<CustomNode | null>(null);
   const [rawNodeCount, setRawNodeCount] = useState(0);
   const [rawEdgeCount, setRawEdgeCount] = useState(0);
+  const [graphVersion, setGraphVersion] = useState(0);
+  const graphRootRef = useRef<HTMLDivElement>(null);
   const { fitView } = useReactFlow();
 
   const fetchGraph = useCallback(async () => {
@@ -154,10 +158,11 @@ function GraphInner({ repositoryId, snapshotId }: { repositoryId: string; snapsh
           id: `${e.source}->${e.target}`,
           source: e.source,
           target: e.target,
-          style: { stroke: "#3A4050", strokeWidth: 1.25 },
+          style: { stroke: "rgb(154 164 178 / 0.35)", strokeWidth: 1.25 },
           animated: false,
         }));
       setEdges(newEdges);
+      setGraphVersion((v) => v + 1);
       requestAnimationFrame(() => fitView({ padding: 0.18, duration: 300 }));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unknown error");
@@ -190,6 +195,38 @@ function GraphInner({ repositoryId, snapshotId }: { repositoryId: string; snapsh
 
   const onNodeClick = useCallback((_: unknown, n: Node) => setSelected(n as CustomNode), []);
   const onPaneClick = useCallback(() => setSelected(null), []);
+
+  // Entrance (§15): nodes scale/fade in, edges fade in just after. Runs once
+  // per successful graph load, not on every pan/zoom re-render.
+  useGSAP(
+    () => {
+      if (!graphRootRef.current || graphVersion === 0 || prefersReducedMotion()) return;
+      const raf = requestAnimationFrame(() => {
+        const nodeEls = graphRootRef.current!.querySelectorAll(".react-flow__node");
+        const edgeEls = graphRootRef.current!.querySelectorAll(".react-flow__edge");
+        if (nodeEls.length === 0) return;
+        gsap.fromTo(
+          nodeEls,
+          { opacity: 0, scale: 0.85 },
+          { opacity: 1, scale: 1, duration: 0.35, ease: EASE.out, stagger: Math.min(0.015, 1.2 / nodeEls.length) }
+        );
+        gsap.fromTo(edgeEls, { opacity: 0 }, { opacity: 1, duration: 0.5, delay: 0.2, ease: EASE.out });
+      });
+      return () => cancelAnimationFrame(raf);
+    },
+    { dependencies: [graphVersion], scope: graphRootRef }
+  );
+
+  // Selected node pulses once (§15) rather than animating continuously.
+  useGSAP(
+    () => {
+      if (!selected || !graphRootRef.current || prefersReducedMotion()) return;
+      const el = graphRootRef.current.querySelector(`.react-flow__node[data-id="${CSS.escape(selected.id)}"]`);
+      if (!el) return;
+      gsap.fromTo(el, { scale: 1.08 }, { scale: 1, duration: 0.3, ease: EASE.out });
+    },
+    { dependencies: [selected?.id], scope: graphRootRef }
+  );
 
   if (loading) {
     return (
@@ -230,7 +267,7 @@ function GraphInner({ repositoryId, snapshotId }: { repositoryId: string; snapsh
 
   return (
     <div className="grid gap-4 lg:grid-cols-[1fr_300px]">
-      <div className="relative h-[62vh] min-h-[420px] overflow-hidden rounded-xl border border-border bg-surface shadow-card">
+      <div ref={graphRootRef} className="relative h-[62vh] min-h-[420px] overflow-hidden rounded-xl border border-border bg-surface shadow-card">
         <div className="absolute left-3 right-3 top-3 z-10 flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-2 rounded-lg border border-border bg-surface/90 px-2 py-1.5 shadow-card backdrop-blur">
             <Search className="h-3.5 w-3.5 text-text-muted" />
@@ -286,7 +323,7 @@ function GraphInner({ repositoryId, snapshotId }: { repositoryId: string; snapsh
           proOptions={{ hideAttribution: false }}
           className="[&_.react-flow__attribution]:!bg-surface/80 [&_.react-flow__attribution]:!text-text-muted"
         >
-          <Background gap={20} size={1} color="#2A3040" style={{ opacity: 0.9 }} />
+          <Background gap={20} size={1} color="rgb(154 164 178 / 0.15)" style={{ opacity: 0.9 }} />
           <Controls
             position="bottom-left"
             className="!border-border !bg-surface !shadow-card [&_button]:!border-border [&_button]:!bg-surface [&_button]:!text-text-muted hover:[&_button]:!bg-surface-hover"
@@ -296,8 +333,8 @@ function GraphInner({ repositoryId, snapshotId }: { repositoryId: string; snapsh
             pannable
             zoomable
             className="!border-border !bg-surface"
-            maskColor="rgba(16,19,26,0.6)"
-            nodeColor={() => "#6C7BFF"}
+            maskColor="rgba(7,9,13,0.6)"
+            nodeColor={() => "#7C5CFF"}
           />
           <Panel position="bottom-center" className="!m-0 mb-2 rounded-full border border-border bg-surface/90 px-3 py-1 text-xs text-text-muted shadow-card backdrop-blur">
             Click a node for details · drag to pan · scroll to zoom

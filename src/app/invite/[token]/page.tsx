@@ -24,7 +24,7 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
   if (session.user.email !== invite.email) {
     return (
       <main className="mx-auto max-w-md px-6 py-16 text-center">
-        <h1 className="mb-4 text-2xl font-medium text-ink">Email Mismatch</h1>
+        <h1 className="mb-4 text-2xl font-medium text-text">Email Mismatch</h1>
         <p className="text-muted">
           This invite was sent to <strong>{invite.email}</strong>, but you&apos;re signed in as{" "}
           <strong>{session.user.email}</strong>. Please sign in with the correct account.
@@ -43,7 +43,7 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
   if (existingMembership) {
     return (
       <main className="mx-auto max-w-md px-6 py-16 text-center">
-        <h1 className="mb-4 text-2xl font-medium text-ink">Already a Member</h1>
+        <h1 className="mb-4 text-2xl font-medium text-text">Already a Member</h1>
         <p className="text-muted">
           You&apos;re already a member of <strong>{invite.organization.name}</strong>.
         </p>

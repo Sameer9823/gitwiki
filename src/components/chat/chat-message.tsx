@@ -1,9 +1,10 @@
 "use client";
 import * as React from "react";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer";
 import { Button } from "@/components/ui/button";
-import { Copy, Check, User } from "lucide-react";
+import { Copy, Check, User, ArrowUpRight } from "lucide-react";
 
 interface Citation {
   path: string;
@@ -19,6 +20,7 @@ interface ChatMessageProps {
   citations?: Citation[];
   streaming?: boolean;
   createdAt?: string;
+  repositoryId?: string;
 }
 
 function parseSourceString(s: string): { path: string; lines?: string; symbol?: string } {
@@ -30,7 +32,7 @@ function parseSourceString(s: string): { path: string; lines?: string; symbol?: 
   return { path: loc };
 }
 
-export function ChatMessage({ role, content, sources, citations, streaming }: ChatMessageProps) {
+export function ChatMessage({ role, content, sources, citations, streaming, repositoryId }: ChatMessageProps) {
   const [copied, setCopied] = React.useState(false);
   const isUser = role === "USER";
 
@@ -94,11 +96,29 @@ export function ChatMessage({ role, content, sources, citations, streaming }: Ch
             <ul className="space-y-1.5">
               {sources.map((s, i) => {
                 const p = parseSourceString(s);
-                return (
-                  <li key={i} className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-surface px-3 py-2 text-xs transition-colors hover:bg-surface-hover">
+                const inner = (
+                  <>
                     <span className="truncate font-mono text-text">{p.path}</span>
                     {p.lines && <span className="font-mono text-text-muted">{p.lines}</span>}
                     {p.symbol && <span className="text-text-muted">— {p.symbol}</span>}
+                    {repositoryId && <ArrowUpRight className="ml-auto h-3 w-3 shrink-0 text-text-subtle opacity-0 transition-opacity group-hover:opacity-100" aria-hidden="true" />}
+                  </>
+                );
+                return (
+                  <li key={i}>
+                    {repositoryId ? (
+                      <Link
+                        href={`/repo/${repositoryId}/explorer?path=${encodeURIComponent(p.path)}`}
+                        className="group flex flex-wrap items-center gap-2 rounded-md border border-border bg-surface px-3 py-2 text-xs transition-colors hover:border-border-strong hover:bg-surface-hover"
+                        title={`Open ${p.path} in Code Explorer`}
+                      >
+                        {inner}
+                      </Link>
+                    ) : (
+                      <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-surface px-3 py-2 text-xs">
+                        {inner}
+                      </div>
+                    )}
                   </li>
                 );
               })}

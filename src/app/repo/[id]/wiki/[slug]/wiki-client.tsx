@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { RepoTabs } from "../../tabs";
 import { WikiSidebar } from "@/components/wiki-sidebar";
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer";
 import { Button } from "@/components/ui/button";
@@ -32,8 +31,7 @@ export function WikiSlugClient({ repositoryId, pages, activeSlug, page }: { repo
   };
 
   return (
-    <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
-      <RepoTabs repositoryId={repositoryId} />
+    <div>
       <div className="flex gap-6 lg:gap-8">
         {/* Desktop sidebar */}
         <aside className="hidden w-[260px] shrink-0 lg:block">
@@ -101,7 +99,7 @@ export function WikiSlugClient({ repositoryId, pages, activeSlug, page }: { repo
           )}
         </div>
       </div>
-    </main>
+    </div>
   );
 }
 

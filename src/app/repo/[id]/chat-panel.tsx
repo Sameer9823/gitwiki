@@ -349,7 +349,7 @@ export function ChatPanel({ repositoryId, initialStatus }: { repositoryId: strin
             />
           ) : (
             messages.map((m) => (
-              <ChatMessage key={m.id} role={m.role} content={m.content} sources={m.sources} streaming={m.streaming} />
+              <ChatMessage key={m.id} role={m.role} content={m.content} sources={m.sources} streaming={m.streaming} repositoryId={repositoryId} />
             ))
           )}
           <div ref={bottomRef} />

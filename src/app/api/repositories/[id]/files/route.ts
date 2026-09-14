@@ -103,7 +103,8 @@ export async function GET(
           ...(isLast ? { language: file.language } : { children: [] }),
         };
         pathMap.set(currentPath, node);
-        const parentPath = currentPath.slice(0, currentPath.lastIndexOf("/"));
+        const slash = currentPath.lastIndexOf("/");
+        const parentPath = slash === -1 ? "" : currentPath.slice(0, slash);
         pathMap.get(parentPath)?.children?.push(node);
       }
     }

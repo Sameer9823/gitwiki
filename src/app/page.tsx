@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
+import { HeroDiagram } from "@/components/landing/hero-diagram";
 
 export default async function LandingPage() {
   const session = await auth();
@@ -58,6 +59,10 @@ export default async function LandingPage() {
             )}
             <span className="text-sm text-text-muted">Free for public repositories · GitHub OAuth</span>
           </div>
+        </div>
+
+        <div className="mt-10 hidden justify-center sm:flex">
+          <HeroDiagram />
         </div>
 
         {/* Hero visual — minimal terminal preview */}

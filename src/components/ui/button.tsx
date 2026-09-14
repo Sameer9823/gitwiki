@@ -5,15 +5,15 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium transition-colors disabled:opacity-50 disabled:pointer-events-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+  "inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium transition-[background-color,border-color,transform,box-shadow] duration-150 ease-out active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none disabled:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background",
   {
     variants: {
       variant: {
-        primary: "bg-primary text-primary-foreground hover:bg-primary-hover",
-        secondary: "bg-surface-muted text-text hover:bg-surface-hover",
-        outline: "border border-border bg-transparent text-text hover:bg-surface-muted",
+        primary: "bg-primary text-primary-foreground hover:bg-primary-hover hover:-translate-y-px",
+        secondary: "bg-surface-muted text-text hover:bg-surface-hover hover:-translate-y-px",
+        outline: "border border-border bg-transparent text-text hover:bg-surface-muted hover:border-border-strong",
         ghost: "text-text-muted hover:text-text hover:bg-surface-muted",
-        destructive: "bg-error text-white hover:bg-error/90",
+        destructive: "bg-error text-white hover:bg-error/90 hover:-translate-y-px",
       },
       size: {
         sm: "h-8 px-3 text-xs",
