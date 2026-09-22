@@ -1,0 +1,98 @@
+# GitWiki Intelligence - Docker Compose
+# Usage:
+#   Development: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+#   Production:  docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+services:
+  # PostgreSQL database
+  postgres:
+    image: postgres:16-alpine
+    container_name: gitwiki-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-gitwiki}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-gitwiki}
+      POSTGRES_DB: ${POSTGRES_DB:-gitwiki}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-gitwiki}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Redis for rate limiting (Upstash-compatible)
+  redis:
+    image: redis:7-alpine
+    container_name: gitwiki-redis
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # GitWiki application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runner
+    container_name: gitwiki-app
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-gitwiki}:${POSTGRES_PASSWORD:-gitwiki}@postgres:5432/${POSTGRES_DB:-gitwiki}?schema=public
+      - AUTH_SECRET=${AUTH_SECRET}
+      - AUTH_GITHUB_ID=${AUTH_GITHUB_ID}
+      - AUTH_GITHUB_SECRET=${AUTH_GITHUB_SECRET}
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - PINECONE_API_KEY=${PINECONE_API_KEY}
+      - PINECONE_INDEX=${PINECONE_INDEX:-git-wiki}
+      - INNGEST_EVENT_KEY=${INNGEST_EVENT_KEY}
+      - INNGEST_SIGNING_KEY=${INNGEST_SIGNING_KEY}
+      - GITHUB_WEBHOOK_SECRET=${GITHUB_WEBHOOK_SECRET}
+      - UPSTASH_REDIS_REST_URL=http://redis:6379
+      - UPSTASH_REDIS_REST_TOKEN=${UPSTASH_REDIS_REST_TOKEN:-}
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Inngest dev server (for local development only)
+  inngest:
+    image: inngest/inngest-cli:latest
+    container_name: gitwiki-inngest
+    command: dev -u http://app:3000/api/inngest
+    ports:
+      - "8288:8288"
+    depends_on:
+      - app
+    profiles:
+      - dev
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  default:
+    name: gitwiki-network
